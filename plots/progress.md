@@ -1,7 +1,7 @@
-Progress at N = 4096
+Progress at N = 8192
 
 | kernel | ms | TFLOPS | % cuBLAS | % peak | speedup vs previous | correct |
 |---|---:|---:|---:|---:|---:|---|
-| naive | 203.723 | 0.67 | 1.2% | 0.8% | - | True |
-| coalesced | 24.683 | 5.57 | 9.9% | 6.7% | 8.25x | True |
-| shared_mem | 21.770 | 6.31 | 11.3% | 7.6% | 1.13x | True |
+| naive | 1611.641 | 0.68 | 1.2% | 0.8% | - | True |
+| coalesced | 230.633 | 4.77 | 8.7% | 5.8% | 6.99x | True |
+| shared_mem | 181.820 | 6.05 | 10.6% | 7.3% | 1.27x | True |
