@@ -9,3 +9,11 @@
 // 01 - naive: one thread per output element
 void sgemm_naive(const torch::Tensor &matrix_a, const torch::Tensor &matrix_b,
                  torch::Tensor &output_matrix, float alpha, float beta);
+
+// 02 - global memory coalescing: consecutive threads compute consecutive columns of C
+void sgemm_coalesced(const torch::Tensor &matrix_a, const torch::Tensor &matrix_b,
+                     torch::Tensor &output_matrix, float alpha, float beta);
+
+// 03 - shared memory caching: each block stages block_size x block_size tiles of A and B in shared memory
+void sgemm_shared_mem(const torch::Tensor &matrix_a, const torch::Tensor &matrix_b,
+                      torch::Tensor &matrix_c, float alpha, float beta);

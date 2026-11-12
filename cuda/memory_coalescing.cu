@@ -104,3 +104,53 @@ __global__ void sgemm_shared_mem_kernel(int num_rows_a, int num_col_b, int num_c
 
 
 
+// Host entry point (declared in gemm_kernels.cuh): C = alpha * (A @ B) + beta * C
+void sgemm_shared_mem(const torch::Tensor &matrix_a, const torch::Tensor &matrix_b,
+                      torch::Tensor &matrix_c, float alpha, float beta)
+{
+    check_gemm_inputs(matrix_a, matrix_b, matrix_c);
+
+    const int num_rows_a = static_cast<int>(matrix_a.size(0));
+    const int num_col_a = static_cast<int>(matrix_a.size(1));
+    const int num_col_b = static_cast<int>(matrix_b.size(1));
+
+    // 1D blocks of block_size * block_size threads; blockIdx.x walks the columns of C,
+    // blockIdx.y walks the rows (the kernel reads block_col = blockIdx.x, block_row = blockIdx.y)
+    constexpr uint block_size = 32;
+    dim3 block_dim(block_size * block_size);
+    dim3 grid_dim(ceil_div(num_col_b, block_size), ceil_div(num_rows_a, block_size));
+
+    // Launch on PyTorch's current stream so the benchmark's CUDA events time this kernel
+    cudaStream_t stream = at::cuda::getCurrentCUDAStream();
+    sgemm_shared_mem_kernel<block_size><<<grid_dim, block_dim, 0, stream>>>(
+        num_rows_a, num_col_b, num_col_a,
+        alpha, beta, matrix_a.data_ptr<float>(), matrix_b.data_ptr<float>(),
+        matrix_c.data_ptr<float>());
+    C10_CUDA_KERNEL_LAUNCH_CHECK();
+}
+
+// Host entry point (declared in gemm_kernels.cuh): C = alpha * (A @ B) + beta * C
+// Launches the coalesced kernel above (sgemm_naive_kernel in this file).
+void sgemm_coalesced(const torch::Tensor &matrix_a, const torch::Tensor &matrix_b,
+                     torch::Tensor &output_matrix, float alpha, float beta)
+{
+    check_gemm_inputs(matrix_a, matrix_b, output_matrix);
+
+    const int num_row_a = static_cast<int>(matrix_a.size(0));
+    const int num_col_a = static_cast<int>(matrix_a.size(1));
+    const int num_col_b = static_cast<int>(matrix_b.size(1));
+
+    // 1D blocks of block_size * block_size threads; blockIdx.x walks the columns of C,
+    // blockIdx.y walks the rows (the kernel reads output_col from blockIdx.x, output_row from blockIdx.y)
+    constexpr uint block_size = 32;
+    dim3 block_dim(block_size * block_size);
+    dim3 grid_dim(ceil_div(num_col_b, block_size), ceil_div(num_row_a, block_size));
+
+    // Launch on PyTorch's current stream so the benchmark's CUDA events time this kernel
+    cudaStream_t stream = at::cuda::getCurrentCUDAStream();
+    sgemm_naive_kernel<block_size><<<grid_dim, block_dim, 0, stream>>>(
+        num_row_a, num_col_b, num_col_a,
+        alpha, matrix_a.data_ptr<float>(), matrix_b.data_ptr<float>(),
+        beta, output_matrix.data_ptr<float>());
+    C10_CUDA_KERNEL_LAUNCH_CHECK();
+}

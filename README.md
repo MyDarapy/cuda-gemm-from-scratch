@@ -1,0 +1,1 @@
+This repo contains 14 GEMM (General Matrix Multiplication) kernel implementations. My goal writing  is to progressively go from a naive kernel to a high optimized kernel 

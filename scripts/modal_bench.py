@@ -9,11 +9,11 @@ One-time setup on your machine:
     pip3 install modal
     python3 -m modal setup
 
-Usage (from this folder):
-    modal run modal_bench.py --bench-args="-k naive --quick"
-    modal run modal_bench.py --bench-args="-k naive"
-    modal run modal_bench.py --bench-args="-k naive --verbose-build"   # see nvcc errors
-    GPU=H100 modal run modal_bench.py --bench-args="-k naive"
+Usage (from the repo root):
+    modal run scripts/modal_bench.py --bench-args="-k naive --quick"
+    modal run scripts/modal_bench.py --bench-args="-k naive"
+    modal run scripts/modal_bench.py --bench-args="-k naive --verbose-build"   # see nvcc errors
+    GPU=H100 modal run scripts/modal_bench.py --bench-args="-k naive"
 
 Each run:
   * uploads this folder (your .cu files, headers, scripts and existing results/)
@@ -27,7 +27,7 @@ from pathlib import Path
 
 import modal
 
-LOCAL_DIR = Path(__file__).resolve().parent
+LOCAL_DIR = Path(__file__).resolve().parent.parent  # repo root
 SRC = "/root/src"      # read-only upload of this folder
 WORK = "/root/work"    # writable copy the benchmark runs in
 CACHE = "/cache"       # Modal Volume: build cache that survives between runs
@@ -67,11 +67,11 @@ def bench(bench_args: list[str], plot: bool) -> dict:
 
     subprocess.run(["nvidia-smi", "--query-gpu=name,driver_version,clocks.max.sm,memory.total",
                     "--format=csv"], check=False)
-    code = subprocess.run([sys.executable, "bench_matmul.py", *bench_args], cwd=work).returncode
+    code = subprocess.run([sys.executable, "scripts/bench_matmul.py", *bench_args], cwd=work).returncode
     build_cache.commit()
 
     if plot and any((work / "results").glob("*.csv")):
-        subprocess.run([sys.executable, "plot_bench.py"], cwd=work, check=False)
+        subprocess.run([sys.executable, "scripts/plot_bench.py"], cwd=work, check=False)
 
     files = {}
     for sub in ("results", "plots"):

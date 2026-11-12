@@ -2,8 +2,8 @@
 """
 bench_matmul.py - progressive benchmark of our FP32 GEMM kernels against cuBLAS.
 
-Every kernel lives in its own .cu file and exposes the same host function,
-declared in gemm_kernels.cuh:
+Every kernel lives in a .cu file under cuda/ and exposes the same host function,
+declared in cuda/gemm_kernels.cuh:
 
     void sgemm_<name>(const Tensor& A, const Tensor& B, Tensor& C, float alpha, float beta)
     // C = alpha * (A @ B) + beta * C,  A: MxK, B: KxN, C: MxN, fp32 row-major
@@ -13,11 +13,14 @@ Each kernel is built as its own extension, so a kernel that is not written yet
 you benchmark one kernel at a time and the plots grow as you go.
 
 Adding a kernel:
-  1. write foo.cu with its kernel and host function sgemm_foo(...)
-  2. declare sgemm_foo in gemm_kernels.cuh
-  3. add a line to KERNELS below
+  1. write cuda/foo.cu with its kernel and host function sgemm_foo(...)
+  2. declare sgemm_foo in cuda/gemm_kernels.cuh
+  3. add a line to KERNELS below (source paths are relative to the repo root)
 
-Usage:
+Layout: cuda/ holds the kernels and gemm_kernels.cuh, scripts/ holds these
+scripts and utils.cuh; build/, results/ and plots/ go in the repo root.
+
+Usage (run from anywhere: paths are resolved from this file):
   python bench_matmul.py --list                  # registered kernels and saved results
   python bench_matmul.py -k naive                # build, check, benchmark -> results/naive.csv
   python bench_matmul.py -k naive --quick        # few sizes, short budget, while iterating
@@ -45,17 +48,20 @@ from pathlib import Path
 
 import torch
 
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parent.parent  # repo root
+SCRIPTS_DIR = ROOT / "scripts"
+KERNEL_DIR = ROOT / "cuda"
 RESULTS_DIR = ROOT / "results"
 BUILD_DIR = ROOT / "build"
 
 # name -> source file and host function. Order here is the order of the progression.
 KERNELS = {
-    "naive": {"source": "naive.cu", "func": "sgemm_naive"},
-    # "coalesced": {"source": "memory_coalescing.cu", "func": "sgemm_coalesced"},
-    # "tiling_1d": {"source": "1D-tiling.cu", "func": "sgemm_tiling_1d"},
-    # "tiling_2d": {"source": "2D-tiling.cu", "func": "sgemm_tiling_2d"},
-    # "warptiling": {"source": "warptiling.cu", "func": "sgemm_warptiling"},
+    "naive": {"source": "cuda/naive.cu", "func": "sgemm_naive"},
+    "coalesced": {"source": "cuda/memory_coalescing.cu", "func": "sgemm_coalesced"},
+    "shared_mem": {"source": "cuda/memory_coalescing.cu", "func": "sgemm_shared_mem"},
+    # "tiling_1d": {"source": "cuda/1D-tiling.cu", "func": "sgemm_tiling_1d"},
+    # "tiling_2d": {"source": "cuda/2D-tiling.cu", "func": "sgemm_tiling_2d"},
+    # "warptiling": {"source": "cuda/warptiling.cu", "func": "sgemm_warptiling"},
 }
 
 # Reference numbers per GPU (boost clock, dense), matched against the device name.
@@ -156,7 +162,7 @@ def build(name, spec, verbose):
     mod = load(
         name=f"gemm_{name}",
         sources=[str(source), str(binding)],
-        extra_include_paths=[str(ROOT)],
+        extra_include_paths=[str(KERNEL_DIR), str(SCRIPTS_DIR)],
         extra_cflags=["-O3"],
         extra_cuda_cflags=["-O3", "-lineinfo"],
         build_directory=str(build_dir),
@@ -212,6 +218,11 @@ class L2Flusher:
 
 def time_runs(run, args, flush):
     """Per-launch times in ms. run() launches exactly one GEMM on the current stream."""
+    # Untimed run first: the first call of a shape can pay one-time costs (cuBLAS
+    # handle/workspace setup, heuristic lookup) that would inflate the probe below.
+    run()
+    torch.cuda.synchronize()
+
     # Probe once to size warmup and iteration count, so an 8 s naive launch
     # and a 50 us cuBLAS launch both get a sensible number of runs.
     s, e = torch.cuda.Event(enable_timing=True), torch.cuda.Event(enable_timing=True)
@@ -340,7 +351,7 @@ def list_kernels():
         src = ROOT / spec["source"]
         saved = sorted(p.stem for p in RESULTS_DIR.glob(f"{name}*.csv")) if RESULTS_DIR.exists() else []
         status = "source ok" if src.exists() else "source MISSING"
-        print(f"  {name:<14} {spec['source']:<24} {spec['func']:<22} {status:<15} "
+        print(f"  {name:<14} {spec['source']:<28} {spec['func']:<22} {status:<15} "
               f"saved: {', '.join(saved) or '-'}")
 
 
