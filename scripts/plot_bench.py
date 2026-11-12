@@ -12,9 +12,17 @@ Usage:
   python plot_bench.py --at 4096                # size used for the progress table
 
 Writes plots/overview.png, plots/{tflops,pct_cublas,time,bandwidth}.png and
-plots/progress.md, a table of where each kernel stands at one size.
+plots/progress.md, a table of where each kernel stands at one size. Those are
+always the latest; every run also keeps a copy that is never overwritten:
+
+  plots/history/<timestamp>_<kernels>/   e.g. plots/history/20261112-093000_naive+coalesced/
+
+so the step-by-step figures (naive alone, then + coalesced, then + shared_mem)
+survive later runs. Pass --no-snapshot to skip the copy.
 """
 import argparse
+import datetime as dt
+import shutil
 from pathlib import Path
 
 import matplotlib
@@ -41,6 +49,8 @@ def parse_args():
     p.add_argument("--out-dir", default=str(ROOT / "plots"))
     p.add_argument("--no-peaks", action="store_true", help="Hide the GPU peak lines")
     p.add_argument("--show", action="store_true", help="Open an interactive window too")
+    p.add_argument("--no-snapshot", action="store_true",
+                   help="Don't keep a copy in plots/history/ (only update the latest plots)")
     return p.parse_args()
 
 
@@ -178,6 +188,15 @@ def main():
     (out / "progress.md").write_text(table + "\n")
     print(table)
     print(f"\nsaved plots to {out}/")
+
+    if not args.no_snapshot:
+        stamp = dt.datetime.now().strftime("%Y%m%d-%H%M%S")
+        labels = "+".join(df["kernel"].iloc[0] for df in frames)
+        snap = out / "history" / f"{stamp}_{labels}"
+        snap.mkdir(parents=True, exist_ok=True)
+        for name in ["overview.png", *[f"{k}.png" for k in kinds], "progress.md"]:
+            shutil.copy2(out / name, snap / name)
+        print(f"kept a copy in {snap}/")
 
     if args.show:
         plt.show()

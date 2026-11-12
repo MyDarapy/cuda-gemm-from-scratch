@@ -57,8 +57,8 @@ BUILD_DIR = ROOT / "build"
 # name -> source file and host function. Order here is the order of the progression.
 KERNELS = {
     "naive": {"source": "cuda/naive.cu", "func": "sgemm_naive"},
-    "coalesced": {"source": "cuda/memory_coalescing.cu", "func": "sgemm_coalesced"},
-    "shared_mem": {"source": "cuda/memory_coalescing.cu", "func": "sgemm_shared_mem"},
+    "coalesced": {"source": "cuda/gmem_coalescing.cu", "func": "sgemm_coalesced"},
+    "shared_mem": {"source": "cuda/smem_caching.cu", "func": "sgemm_shared_mem"},
     # "tiling_1d": {"source": "cuda/1D-tiling.cu", "func": "sgemm_tiling_1d"},
     # "tiling_2d": {"source": "cuda/2D-tiling.cu", "func": "sgemm_tiling_2d"},
     # "warptiling": {"source": "cuda/warptiling.cu", "func": "sgemm_warptiling"},
